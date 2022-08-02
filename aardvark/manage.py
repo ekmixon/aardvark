@@ -69,8 +69,10 @@ class UpdateAccountThread(threading.Thread):
             if not ACCOUNT_QUEUE.empty():
                 (account_num, role_name, arns) = ACCOUNT_QUEUE.get()
 
-                self.app.logger.info("Thread #{} updating account {} with {} arns".format(
-                                     self.thread_ID, account_num, 'all' if arns[0] == 'all' else len(arns)))
+                self.app.logger.info(
+                    f"Thread #{self.thread_ID} updating account {account_num} with {'all' if arns[0] == 'all' else len(arns)} arns"
+                )
+
 
                 self.app.logger.debug(f"ACCOUNT_QUEUE depth now ~ {ACCOUNT_QUEUE.qsize()}")
 
@@ -92,14 +94,20 @@ class UpdateAccountThread(threading.Thread):
                     ACCOUNT_QUEUE.put((account_num, role_name, arns))
                     QUEUE_LOCK.release()
 
-                self.app.logger.info("Thread #{} persisting data for account {}".format(self.thread_ID, account_num))
+                self.app.logger.info(
+                    f"Thread #{self.thread_ID} persisting data for account {account_num}"
+                )
+
 
                 DB_LOCK.acquire()
                 persist_aa_data(self.app, aa_data)
                 DB_LOCK.release()
 
                 self.on_complete.send(self)
-                self.app.logger.info("Thread #{} FINISHED persisting data for account {}".format(self.thread_ID, account_num))
+                self.app.logger.info(
+                    f"Thread #{self.thread_ID} FINISHED persisting data for account {account_num}"
+                )
+
             else:
                 QUEUE_LOCK.release()
 
@@ -310,7 +318,7 @@ def _prep_accounts(account_names):
     Considers account aliases as well as account names.
     Returns a list of account numbers
     """
-    matching_accounts = list()
+    matching_accounts = []
     account_names = account_names.split(',')
     account_names = {name.lower().strip() for name in account_names}
 
@@ -324,19 +332,25 @@ def _prep_accounts(account_names):
         return matching_accounts
 
     try:
-        current_app.logger.info('getting bucket {}'.format(
-                                current_app.config.get('SWAG_BUCKET')))
+        current_app.logger.info(
+            f"getting bucket {current_app.config.get('SWAG_BUCKET')}"
+        )
+
 
         swag = SWAGManager(**parse_swag_config_options(current_app.config.get('SWAG_OPTS')))
 
         all_accounts = swag.get_all(current_app.config.get('SWAG_FILTER'))
 
-        service_enabled_requirement = current_app.config.get('SWAG_SERVICE_ENABLED_REQUIREMENT', None)
-        if service_enabled_requirement:
+        if service_enabled_requirement := current_app.config.get(
+            'SWAG_SERVICE_ENABLED_REQUIREMENT', None
+        ):
             all_accounts = swag.get_service_enabled(service_enabled_requirement, accounts_list=all_accounts)
 
-    except (KeyError, InvalidSWAGDataException, Exception) as e:
-        current_app.logger.error('Account names passed but SWAG not configured or unavailable: {}'.format(e))
+    except (InvalidSWAGDataException, Exception) as e:
+        current_app.logger.error(
+            f'Account names passed but SWAG not configured or unavailable: {e}'
+        )
+
 
     if 'all' in account_names:
         return [account['id'] for account in all_accounts]
@@ -351,12 +365,10 @@ def _prep_accounts(account_names):
 
     for name in account_names:
         if name not in lookup:
-            current_app.logger.warn('Could not find an account named %s'
-                                    % name)
+            current_app.logger.warn(f'Could not find an account named {name}')
             continue
 
-        account_number = lookup[name].get('id', None)
-        if account_number:
+        if account_number := lookup[name].get('id', None):
             matching_accounts.append(account_number)
 
     return matching_accounts

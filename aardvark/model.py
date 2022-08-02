@@ -32,7 +32,7 @@ class AWSIAMObject(db.Model):
         try:
             item = AWSIAMObject.query.filter(AWSIAMObject.arn == arn).scalar()
         except sqlalchemy.exc.SQLAlchemyException as e:
-            current_app.logger.error('Database exception: {}'.format(e.message))
+            current_app.logger.error(f'Database exception: {e.message}')
 
         if not item:
             item = AWSIAMObject(arn=arn, lastUpdated=datetime.datetime.utcnow())
@@ -79,8 +79,10 @@ class AdvisorData(db.Model):
             item = AdvisorData.query.filter(AdvisorData.item_id == item_id).filter(AdvisorData.serviceNamespace ==
                                                                                    serviceNamespace).scalar()
         except sqlalchemy.exc.SQLAlchemyError as e:
-            current_app.logger.error('Database error: {} item_id: {} serviceNamespace: {}'.format(e.args[0], item_id,
-                                     serviceNamespace)) #exception.messsage not supported in py3 e.args[0] replacement
+            current_app.logger.error(
+                f'Database error: {e.args[0]} item_id: {item_id} serviceNamespace: {serviceNamespace}'
+            )
+
 
         if not item:
             item = AdvisorData(item_id=item_id,
@@ -109,9 +111,10 @@ class AdvisorData(db.Model):
             the last access, so AA no longer returns a timestamp for it.
             """
             if lastAuthenticated == 0:
-                current_app.logger.warn('Previously seen object not accessed in the past 365 days '
-                                        '(got null lastAuthenticated from AA). Setting to 0. '
-                                        'Object {} service {} previous timestamp {}'.format(item.item_id, item.serviceName, item.lastAuthenticated))
+                current_app.logger.warn(
+                    f'Previously seen object not accessed in the past 365 days (got null lastAuthenticated from AA). Setting to 0. Object {item.item_id} service {item.serviceName} previous timestamp {item.lastAuthenticated}'
+                )
+
                 item.lastAuthenticated = 0
                 db.session.add(item)
             else:

@@ -62,8 +62,12 @@ def sqlite_regex_match(element, compiler, **kw):
                                         operator,
                                         compiler.process(element.right)))
         raise exc.StatementError(
-            "unknown regular expression match operator: %s" % operator,
-            would_be_sql_string, None, e)
+            f"unknown regular expression match operator: {operator}",
+            would_be_sql_string,
+            None,
+            e,
+        )
+
 
     # compile the expression as an invocation of the custom function
     regex_func = getattr(func, func_name)

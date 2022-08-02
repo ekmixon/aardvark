@@ -61,10 +61,7 @@ def _find_config():
     CONFIG_PATHS = [os.path.join(os.getcwd(), 'config.py'),
                     '/etc/aardvark/config.py',
                     '/apps/aardvark/config.py']
-    for path in CONFIG_PATHS:
-        if os.path.exists(path):
-            return path
-    return None
+    return next((path for path in CONFIG_PATHS if os.path.exists(path)), None)
 
 
 def setup_logging(app):

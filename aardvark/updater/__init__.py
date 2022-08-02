@@ -66,10 +66,7 @@ class AccountToUpdate(object):
         """
         client = self._get_client()
 
-        account_arns = set()
-
-        for role in list_roles(**self.conn_details):
-            account_arns.add(role['Arn'])
+        account_arns = {role['Arn'] for role in list_roles(**self.conn_details)}
 
         for user in list_users(**self.conn_details):
             account_arns.add(user['Arn'])
@@ -103,13 +100,11 @@ class AccountToUpdate(object):
         :return: boto3 IAM client in target account & role
         """
         try:
-            client = boto3_cached_conn(
-                'iam', **self.conn_details)
+            if client := boto3_cached_conn('iam', **self.conn_details):
+                return client
 
-            if not client:
+            else:
                 raise ValueError(f"boto3_cached_conn returned null IAM client for {self.account_number}")
-
-            return client
 
         except Exception as e:
             self.on_failure.send(self, error=e)
@@ -209,23 +204,18 @@ class AccountToUpdate(object):
 
                     # AWS gives a datetime, convert to epoch
                     last_auth = detail.get('LastAuthenticated')
-                    if last_auth:
-                        last_auth = int(time.mktime(last_auth.timetuple()) * 1000)
-                    else:
-                        last_auth = 0
-
+                    last_auth = int(time.mktime(last_auth.timetuple()) * 1000) if last_auth else 0
                     updated_item['LastAuthenticated'] = last_auth
                     updated_list.append(updated_item)
-                if details.get('Truncated', False):
-                    try:
-                        details = self._get_service_last_accessed_details(iam, job_id, marker=details.get('Marker'))
-                    except Exception as e:
-                        self.on_error.send(self, error=e)
-                        self.current_app.logger.error('Could not gather data from {0}.'.format(role_arn), exc_info=True)
-                        break
-                else:
+                if not details.get('Truncated', False):
                     break
 
+                try:
+                    details = self._get_service_last_accessed_details(iam, job_id, marker=details.get('Marker'))
+                except Exception as e:
+                    self.on_error.send(self, error=e)
+                    self.current_app.logger.error('Could not gather data from {0}.'.format(role_arn), exc_info=True)
+                    break
             access_details[role_arn] = updated_list
 
         return access_details

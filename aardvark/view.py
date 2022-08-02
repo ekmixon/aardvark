@@ -32,7 +32,7 @@ class RoleSearch(Resource):
         del aa['page']
         del aa['total']
 
-        usage = dict()
+        usage = {}
         for arn, services in aa.items():
             for service in services:
                 namespace = service.get('serviceNamespace')
@@ -164,7 +164,7 @@ class RoleSearch(Resource):
 
         try:
             if phrase:
-                query = query.filter(AWSIAMObject.arn.ilike('%' + phrase + '%'))
+                query = query.filter(AWSIAMObject.arn.ilike(f'%{phrase}%'))
 
             if arns:
                 query = query.filter(
@@ -182,22 +182,25 @@ class RoleSearch(Resource):
 
         values = dict(page=items.page, total=items.total, count=len(items.items))
         for item in items.items:
-            item_values = []
-            for advisor_data in item.usage:
-                item_values.append(dict(
+            item_values = [
+                dict(
                     lastAuthenticated=advisor_data.lastAuthenticated,
                     serviceName=advisor_data.serviceName,
                     serviceNamespace=advisor_data.serviceNamespace,
                     lastAuthenticatedEntity=advisor_data.lastAuthenticatedEntity,
                     totalAuthenticatedEntities=advisor_data.totalAuthenticatedEntities,
-                    lastUpdated=item.lastUpdated
-                ))
+                    lastUpdated=item.lastUpdated,
+                )
+                for advisor_data in item.usage
+            ]
+
             values[item.arn] = item_values
 
-        if combine and items.total > len(items.items):
-            abort(400, "Error: Please specify a count of at least {}.".format(items.total))
-        elif combine:
-            return self.combine(values)
+        if combine:
+            if items.total > len(items.items):
+                abort(400, f"Error: Please specify a count of at least {items.total}.")
+            else:
+                return self.combine(values)
 
         return jsonify(values)
 

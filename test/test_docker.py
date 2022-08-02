@@ -102,7 +102,7 @@ SKIP_NO_IMAGES_TAG_MSG = (
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 def sqlite_db_uri(path):
     '''Return the default db_uri value at runtime.'''
-    return 'sqlite:///{}/aardvark.db'.format(path)
+    return f'sqlite:///{path}/aardvark.db'
 
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -232,7 +232,7 @@ class TestDockerBase(unittest.TestCase):
 
         hanging_constructs = {}
 
-        for construct_type in construct_fields.keys():
+        for construct_type in construct_fields:
 
             hanging_constructs[construct_type] = [
                 c for c in cls.constructs['current'][construct_type]
@@ -314,15 +314,15 @@ class TestDockerBase(unittest.TestCase):
                 # These should have been launched with the --rm flag,
                 # so they should be removed once stopped.
                 logger.info("REMOVING %s", container['id'])
-                pexpect.run('docker stop {}'.format(container['id']))
+                pexpect.run(f"docker stop {container['id']}")
 
             for image in new_images:
                 logger.info("REMOVING %s", image['id'])
-                pexpect.run('docker rmi {}'.format(image['id']))
+                pexpect.run(f"docker rmi {image['id']}")
 
             for volume in new_volumes:
                 logger.info("REMOVING %s", volume['name'])
-                pexpect.run('docker volume rm {}'.format(volume['name']))
+                pexpect.run(f"docker volume rm {volume['name']}")
 
         else:
             # We'll leave behind any new docker constructs, so we need
@@ -350,7 +350,7 @@ class TestDockerBase(unittest.TestCase):
             'volume': ['name'],
             }
 
-        for construct_type in construct_fields.keys():
+        for construct_type in construct_fields:
 
             logger.info("------------%ss:", construct_type)
             logger.info(log_listing(
@@ -397,9 +397,12 @@ class TestDockerBase(unittest.TestCase):
         docker_images_response = pexpect.run('docker image ls')
 
         image_list = []
-        expected_image_nametag_pairs = [
-            (x.split(':') + ['latest'])[0:2] for x in expected_images
-            ] if expected_images else None
+        expected_image_nametag_pairs = (
+            [(x.split(':') + ['latest'])[:2] for x in expected_images]
+            if expected_images
+            else None
+        )
+
 
         docker_images_response_l = docker_images_response.decode('utf-8').split('\n')
 
@@ -443,8 +446,7 @@ class TestDockerBase(unittest.TestCase):
         docker_containers_response_l = docker_containers_response.decode('utf-8').split('\n')
 
         for line in docker_containers_response_l:
-            match = container_listing_re.match(line)
-            if match:
+            if match := container_listing_re.match(line):
                 container_list.append(match.groupdict())
 
         return container_list
@@ -468,8 +470,7 @@ class TestDockerBase(unittest.TestCase):
         volume_list = []
 
         for line in docker_volumes_response_l:
-            match = volume_listing_re.match(line)
-            if match:
+            if match := volume_listing_re.match(line):
                 volume_list.append(match.groupdict())
 
         return volume_list
@@ -483,15 +484,15 @@ class TestDockerBase(unittest.TestCase):
 
         '''
 
-        failure_string_template = (
-            'Unexpected or missing filename match result in {}'
-            ' for pattern r\'{}\':\n{}\n'
-            'Directory contents:\n{}'
-            )
-
         if patterns:
             self.assertTrue(os.path.exists(directory))
             all_filenames = os.listdir(directory)
+            failure_string_template = (
+                'Unexpected or missing filename match result in {}'
+                ' for pattern r\'{}\':\n{}\n'
+                'Directory contents:\n{}'
+                )
+
             for pattern in patterns:
                 matching_files = [
                     x for x in all_filenames
@@ -526,21 +527,21 @@ class TestDockerBase(unittest.TestCase):
         # from container command lines.
         shell_commands = (
             ('pwd', 'pwd', None),
-            ('config_file', 'ls {}'.format(CONTAINER_CONFIG_PATH), None),
-            ('config_contents', 'cat {}'.format(CONTAINER_CONFIG_PATH), None),
-            )
+            ('config_file', f'ls {CONTAINER_CONFIG_PATH}', None),
+            ('config_contents', f'cat {CONTAINER_CONFIG_PATH}', None),
+        )
 
-        command = "docker run --rm -it {} bash".format(image)
+
+        command = f"docker run --rm -it {image} bash"
         logger.info('IMAGE: %s', image)
         logger.info('CONTAINER LAUNCH COMMAND: %s', command)
         spawn = pexpect.spawn(command)
 
-        container_details = {}
+        container_details = {
+            field: interact(spawn, shell_command, response_filter)
+            for field, shell_command, response_filter in shell_commands
+        }
 
-        for field, shell_command, response_filter in shell_commands:
-            container_details[field] = interact(
-                spawn, shell_command, response_filter
-                )
 
         # Exit the container.
         spawn.sendcontrol('d')
@@ -663,12 +664,11 @@ class TestDockerBase(unittest.TestCase):
             images_tag = 'latest'
             logger.info('Default test case images tag will be "latest"')
 
-        expected_artifacts = expected_artifacts or []
         expected_docker_images = expected_docker_images or []
         tagged_expected_docker_images = [
-            x + ':{}'.format(images_tag)
-            for x in expected_docker_images
-            ]
+            x + f':{images_tag}' for x in expected_docker_images
+        ]
+
 
         # expected_details is a two level dict so a straightforward
         # dict update isn't possible.
@@ -699,7 +699,7 @@ class TestDockerBase(unittest.TestCase):
             if k not in BUILD_CONTROL_ENV_VARIABLES
         }
 
-        command = 'make {}'.format(target)
+        command = f'make {target}'
         logger.info('COMMAND: %s', command)
 
         # TODO: A sort of halfhearted attempt at adjusting for network
@@ -716,11 +716,11 @@ class TestDockerBase(unittest.TestCase):
             )
 
         self.assertEqual(
-            exitstatus, 0,
-            'command "{}" exited with exit status {}'.format(
-                command, exitstatus
-                )
-            )
+            exitstatus,
+            0,
+            f'command "{command}" exited with exit status {exitstatus}',
+        )
+
 
         # Sanity check - we didn't delete the Makefile or any of the
         # Dockerfiles.
@@ -746,7 +746,7 @@ class TestDockerBase(unittest.TestCase):
         if expect_aardvark:
             self.require_filenames_in_directory([r'aardvark$'])
 
-        if expected_artifacts:
+        if expected_artifacts := expected_artifacts or []:
             self.require_filenames_in_directory(
                 expected_artifacts,
                 directory=ARTIFACT_DIRECTORY

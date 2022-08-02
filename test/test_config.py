@@ -153,7 +153,7 @@ def get_config_option_string(cmdline_option_spec, short_flags=True):
             if short_flags and CONFIG_OPTIONS[param]['short']
             else CONFIG_OPTIONS[param]['long']
             )
-        option_substrings.append('{} {}'.format(flag, value))
+        option_substrings.append(f'{flag} {value}')
 
     return ' '.join(option_substrings)
 
@@ -165,12 +165,12 @@ def load_configfile(cmdline_option_spec):
     all_config = {}
     with open(CONFIG_FILENAME) as in_file:
         exec(in_file.read(), all_config)
-    # print all_config.keys()
-    found_config = dict([
-        (k, v['getval'](all_config.get(v['config_key'])))
-        for (k, v) in CONFIG_OPTIONS.items()
-        ])
-    return found_config
+    return dict(
+        [
+            (k, v['getval'](all_config.get(v['config_key'])))
+            for (k, v) in CONFIG_OPTIONS.items()
+        ]
+    )
 
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -182,7 +182,7 @@ def get_expected_config(option_spec):
         DEFAULT_PARAMETERS if include_swag else DEFAULT_PARAMETERS_NO_SWAG
         )
     expected_config = dict(default_parameters)
-    expected_config.update(option_spec)
+    expected_config |= option_spec
 
     return expected_config
 
@@ -255,40 +255,35 @@ class TestConfigBase(unittest.TestCase):
         '''Test case common fixture teardown.'''
 
         # Archive the last command and config file created, if indicated.
-        if self.archive_case_artifacts_as:
+        if not self.archive_case_artifacts_as:
+            return
+        command_archive_path = self.archive_path(
+            'command', self.archive_case_artifacts_as
+            )
+        config_archive_path = self.archive_path(
+            CONFIG_FILENAME, self.archive_case_artifacts_as
+            )
 
-            command_archive_path = self.archive_path(
-                'command', self.archive_case_artifacts_as
-                )
-            config_archive_path = self.archive_path(
-                CONFIG_FILENAME, self.archive_case_artifacts_as
-                )
+        with open(command_archive_path, 'w') as fptr:
+            fptr.write(self.last_config_command + '\n')
+            if self.last_transcript:
+                fptr.write(
+                    '\n'.join(
+                        map(lambda x: str(x), self.last_transcript)
+                        ) + '\n'
+                    )
 
-            with open(command_archive_path, 'w') as fptr:
-                fptr.write(self.last_config_command + '\n')
-                if self.last_transcript:
-                    fptr.write(
-                        '\n'.join(
-                            map(lambda x: str(x), self.last_transcript)
-                            ) + '\n'
-                        )
-
-            if os.path.exists(CONFIG_FILENAME):
-                shutil.copyfile(CONFIG_FILENAME, config_archive_path)
-            else:
-                with open(config_archive_path, 'w') as fptr:
-                    fptr.write(
-                        '(no {} file found in {})\n'.format(
-                            CONFIG_FILENAME, os.getcwd()
-                            )
-                        )
+        if os.path.exists(CONFIG_FILENAME):
+            shutil.copyfile(CONFIG_FILENAME, config_archive_path)
+        else:
+            with open(config_archive_path, 'w') as fptr:
+                fptr.write(f'(no {CONFIG_FILENAME} file found in {os.getcwd()})\n')
 
     # - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     def archive_path(self, filename, suffix):
         '''Return the path to an archive file.'''
         archive_filename = '.'.join([filename, suffix])
-        archive_path = os.path.join(ARTIFACT_ARCHIVE_DIR, archive_filename)
-        return archive_path
+        return os.path.join(ARTIFACT_ARCHIVE_DIR, archive_filename)
 
     # - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     def call_aardvark_config(
@@ -337,10 +332,10 @@ class TestConfigBase(unittest.TestCase):
             ]
         expect_prompts = [
             (r'(?i).*Do you use SWAG.*:', 'use_swag'),
-            ]
+            *config_option_prompts,
+            *control_prompts,
+        ]
 
-        expect_prompts.extend(config_option_prompts)
-        expect_prompts.extend(control_prompts)
 
         response_spec = input_option_spec
         response_spec['use_swag'] = (
